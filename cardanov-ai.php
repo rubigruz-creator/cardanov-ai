@@ -3,7 +3,7 @@
  * Plugin Name: Cardanov AI Agent
  * Plugin URI: https://cardanov.ru/
  * Description: ИИ-агент для ответов на вопросы пользователей
- * Version: 3.4.0
+ * Version: 3.4.1
  * Author: Cardanov Team
  * License: GPL v2 or later
  * Text Domain: cardanov-ai
@@ -13,7 +13,7 @@ if (!defined('ABSPATH')) {
     exit;
 }
 
-define('CARDANOV_AI_VERSION', '3.4.0');
+define('CARDANOV_AI_VERSION', '3.4.1');
 define('CARDANOV_AI_PATH', plugin_dir_path(__FILE__));
 define('CARDANOV_AI_URL', plugin_dir_url(__FILE__));
 
@@ -1012,7 +1012,7 @@ class CardanovAIAgent {
             $excluded_array = $excluded_pages_option ? explode(',', $excluded_pages_option) : [];
         }
         
-        $excluded_array = array_filter($excluded_array, 'strlen');
+        $excluded_array = array_filter(array_map('intval', $excluded_array));
         ?>
         <div class="wrap">
             <h1>⚙️ Настройки AI Agent</h1>
@@ -1115,7 +1115,15 @@ class CardanovAIAgent {
         $current_page_id = get_the_ID();
         if ($current_page_id) {
             $excluded_pages = get_option('cardanov_ai_excluded_pages', '');
-            $excluded_array = $excluded_pages ? explode(',', $excluded_pages) : [];
+            
+            // ИСПРАВЛЕНИЕ: Правильная обработка массива
+            if (is_array($excluded_pages)) {
+                $excluded_array = $excluded_pages;
+            } else {
+                $excluded_array = $excluded_pages ? explode(',', $excluded_pages) : [];
+            }
+            
+            $excluded_array = array_filter(array_map('intval', $excluded_array));
             
             if (in_array($current_page_id, $excluded_array)) {
                 return; // Не показываем на исключенной странице
@@ -1125,6 +1133,9 @@ class CardanovAIAgent {
         $button_text = get_option('cardanov_ai_button_text', 'Задать вопрос');
         $button_color = get_option('cardanov_ai_button_color', '#1a5fb4');
         $welcome_message = get_option('cardanov_ai_welcome_message', 'Здравствуйте! Я помощник компании Автотехногарант. Спросите меня о ремонте карданных валов, ценах, адресе или графике работы.');
+        
+        // Создаем nonce для AJAX
+        $ajax_nonce = wp_create_nonce('cardanov_ai_ask');
         ?>
         <div id="cardanov-ai-widget">
             <button id="cardanov-ai-toggle">
@@ -1332,6 +1343,9 @@ class CardanovAIAgent {
             var send = $('#cardanov-ai-send');
             var messages = $('.cardanov-ai-messages');
             
+            // Nonce для AJAX запросов
+            var ajax_nonce = '<?php echo esc_js($ajax_nonce); ?>';
+            
             var isOpen = false;
             var isLoading = false;
             
@@ -1360,7 +1374,8 @@ class CardanovAIAgent {
                 
                 $.post('<?php echo admin_url('admin-ajax.php'); ?>', {
                     action: 'cardanov_ai_ask',
-                    question: text
+                    question: text,
+                    nonce: ajax_nonce  // Добавляем nonce
                 }, function(response) {
                     $('.typing-indicator').remove();
                     isLoading = false;
@@ -1400,6 +1415,12 @@ class CardanovAIAgent {
         global $wpdb;
         $table_name = $wpdb->prefix . 'cardanov_ai_knowledge';
         $log_table = $wpdb->prefix . 'cardanov_ai_logs';
+        
+        // Проверка nonce (но не блокируем если его нет для обратной совместимости)
+        $nonce = $_POST['nonce'] ?? '';
+        if (!empty($nonce) && !wp_verify_nonce($nonce, 'cardanov_ai_ask')) {
+            wp_send_json_error(['message' => 'Ошибка безопасности']);
+        }
         
         $question = sanitize_text_field($_POST['question'] ?? '');
         $start_time = microtime(true);
@@ -1659,11 +1680,31 @@ class CardanovAIAgent {
     }
     
     public function register_settings() {
-        register_setting('cardanov_ai_settings', 'cardanov_ai_button_text');
-        register_setting('cardanov_ai_settings', 'cardanov_ai_button_color');
-        register_setting('cardanov_ai_settings', 'cardanov_ai_welcome_message');
-        register_setting('cardanov_ai_settings', 'cardanov_ai_enabled');
-        register_setting('cardanov_ai_settings', 'cardanov_ai_excluded_pages');
+        register_setting('cardanov_ai_settings', 'cardanov_ai_button_text', 'sanitize_text_field');
+        register_setting('cardanov_ai_settings', 'cardanov_ai_button_color', 'sanitize_hex_color');
+        register_setting('cardanov_ai_settings', 'cardanov_ai_welcome_message', 'sanitize_textarea_field');
+        register_setting('cardanov_ai_settings', 'cardanov_ai_enabled', array(
+            'type' => 'string',
+            'sanitize_callback' => function($value) {
+                return $value === '1' ? '1' : '0';
+            },
+            'default' => '1'
+        ));
+        
+        // Для массива исключенных страниц
+        register_setting('cardanov_ai_settings', 'cardanov_ai_excluded_pages', array(
+            'type' => 'array',
+            'sanitize_callback' => function($value) {
+                if (empty($value)) return array();
+                if (is_array($value)) {
+                    return array_map('intval', $value);
+                }
+                // Для обратной совместимости со старыми данными
+                $pages = explode(',', $value);
+                return array_filter(array_map('intval', $pages));
+            },
+            'default' => array()
+        ));
     }
     
     public function register_elementor_widget($widgets_manager) {
