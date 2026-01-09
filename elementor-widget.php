@@ -1,57 +1,30 @@
 <?php
-// Elementor Widget для Cardanov AI Agent
+// elementor-widget.php - МИНИМАЛЬНАЯ РАБОЧАЯ ВЕРСИЯ
 if (!defined('ABSPATH')) exit;
 
+// Класс виджета
 class CardanovAI_Elementor_Widget extends \Elementor\Widget_Base {
     
-    public function get_name() {
-        return 'cardanov_ai';
-    }
-    
-    public function get_title() {
-        return 'Cardanov AI';
-    }
-    
-    public function get_icon() {
-        return 'eicon-robot';
-    }
-    
-    public function get_categories() {
-        return ['general'];
-    }
+    public function get_name() { return 'cardanov_ai'; }
+    public function get_title() { return 'Cardanov AI'; }
+    public function get_icon() { return 'eicon-robot'; }
+    public function get_categories() { return ['basic']; }
     
     protected function render() {
-        $settings = $this->get_settings_for_display();
+        $button_text = get_option('cardanov_ai_button_text', '🤖 Задать вопрос AI');
+        $button_color = get_option('cardanov_ai_button_color', '#1a5fb4');
         ?>
-        <div class="cardanov-ai-elementor-widget">
-            <button class="cardanov-ai-elementor-btn" 
-                    onclick="if(typeof jQuery!=='undefined')jQuery('#cardanov-ai-toggle').click();else alert('Откройте виджет в правом нижнем углу');">
-                🤖 Задать вопрос AI
-            </button>
-            
-            <style>
-            .cardanov-ai-elementor-btn {
-                background: #1a5fb4;
-                color: white;
-                border: none;
-                padding: 12px 24px;
-                border-radius: 25px;
-                cursor: pointer;
-                font-size: 16px;
-                font-weight: 500;
-                transition: all 0.3s;
-            }
-            .cardanov-ai-elementor-btn:hover {
-                transform: translateY(-2px);
-                box-shadow: 0 6px 16px rgba(0,0,0,0.2);
-            }
-            </style>
-        </div>
+        <button class="cardanov-ai-elementor-btn" 
+                style="background:<?php echo $button_color; ?>;color:white;padding:12px 24px;border-radius:25px;border:none;cursor:pointer;font-size:16px;"
+                onclick="if(typeof jQuery!=='undefined')jQuery('#cardanov-ai-toggle').click();else alert('Откройте виджет в правом нижнем углу');">
+            <?php echo esc_html($button_text); ?>
+        </button>
         <?php
     }
 }
 
-// Регистрация виджета
-add_action('elementor/widgets/register', function($widgets_manager) {
-    $widgets_manager->register(new CardanovAI_Elementor_Widget());
+
+// Регистрация - УНИВЕРСАЛЬНЫЙ СПОСОБ
+add_action('elementor/widgets/widgets_registered', function() {
+    \Elementor\Plugin::instance()->widgets_manager->register_widget_type(new CardanovAI_Elementor_Widget());
 });

@@ -3,23 +3,20 @@
  * Plugin Name: Cardanov AI Agent
  * Plugin URI: https://cardanov.ru/
  * Description: ИИ-агент для ответов на вопросы пользователей
- * Version: 3.3.1
+ * Version: 3.4.0
  * Author: Cardanov Team
  * License: GPL v2 or later
  * Text Domain: cardanov-ai
  */
 
-// Безопасность
 if (!defined('ABSPATH')) {
     exit;
 }
 
-// Константы плагина
-define('CARDANOV_AI_VERSION', '3.3.1');
+define('CARDANOV_AI_VERSION', '3.4.0');
 define('CARDANOV_AI_PATH', plugin_dir_path(__FILE__));
 define('CARDANOV_AI_URL', plugin_dir_url(__FILE__));
 
-// Основной класс плагина
 class CardanovAIAgent {
     
     private static $instance = null;
@@ -36,14 +33,11 @@ class CardanovAIAgent {
     }
     
     private function init_hooks() {
-        // Регистрация активации/деактивации
         register_activation_hook(__FILE__, [$this, 'activate']);
         register_deactivation_hook(__FILE__, [$this, 'deactivate']);
         
-        // Инициализация плагина
         add_action('init', [$this, 'init']);
         
-        // AJAX обработчики
         add_action('wp_ajax_cardanov_ai_ask', [$this, 'ajax_handler']);
         add_action('wp_ajax_nopriv_cardanov_ai_ask', [$this, 'ajax_handler']);
         add_action('wp_ajax_cardanov_ai_check_table', [$this, 'ajax_check_table']);
@@ -52,42 +46,33 @@ class CardanovAIAgent {
         add_action('wp_ajax_cardanov_ai_clear_logs', [$this, 'ajax_clear_logs']);
         add_action('wp_ajax_cardanov_ai_force_create', [$this, 'ajax_force_create']);
         
-        // Админ меню
         add_action('admin_menu', [$this, 'add_admin_menu']);
-        
-        // Обработка форм администратора
         add_action('admin_post_cardanov_ai_save_knowledge', [$this, 'handle_save_knowledge']);
         
-        // Виджет на сайте
-        add_action('wp_footer', [$this, 'display_widget']);
+        // Виджет показывается только если включен в настройках
+        if (get_option('cardanov_ai_enabled', '1') === '1') {
+            add_action('wp_footer', [$this, 'display_widget']);
+        }
         
-        // Elementor
         add_action('elementor/widgets/register', [$this, 'register_elementor_widget']);
-        
-        // Регистрация настроек
         add_action('admin_init', [$this, 'register_settings']);
-        
-        // Стили для админки
         add_action('admin_enqueue_scripts', [$this, 'admin_styles']);
     }
     
     public function activate() {
-        // Создаем таблицы при активации
         $this->create_table();
         $this->create_log_table();
         
-        // Добавляем опции по умолчанию
         add_option('cardanov_ai_button_text', 'Задать вопрос');
         add_option('cardanov_ai_button_color', '#1a5fb4');
         add_option('cardanov_ai_welcome_message', 'Здравствуйте! Я помощник компании Автотехногарант. Спросите меня о ремонте карданных валов, ценах, адресе или графике работы.');
+        add_option('cardanov_ai_enabled', '1'); // По умолчанию включен
+        add_option('cardanov_ai_excluded_pages', ''); // Пусто - нет исключений
     }
     
-    public function deactivate() {
-        // Не удаляем данные при деактивации
-    }
+    public function deactivate() {}
     
     public function init() {
-        // Загрузка текстового домена
         load_plugin_textdomain('cardanov-ai', false, dirname(plugin_basename(__FILE__)) . '/languages');
     }
     
@@ -96,7 +81,6 @@ class CardanovAIAgent {
         
         $table_name = $wpdb->prefix . 'cardanov_ai_knowledge';
         
-        // Прямой SQL запрос для BeGet
         if ($wpdb->get_var("SHOW TABLES LIKE '$table_name'") != $table_name) {
             $sql = "CREATE TABLE $table_name (
                 id int(11) NOT NULL AUTO_INCREMENT,
@@ -113,7 +97,6 @@ class CardanovAIAgent {
             
             $wpdb->query($sql);
             
-            // Добавляем тестовые данные если таблица пуста
             $count = $wpdb->get_var("SELECT COUNT(*) FROM $table_name");
             if ($count == 0) {
                 $this->add_default_data($table_name);
@@ -126,7 +109,6 @@ class CardanovAIAgent {
         
         $table_name = $wpdb->prefix . 'cardanov_ai_logs';
         
-        // Прямой SQL запрос для BeGet
         if ($wpdb->get_var("SHOW TABLES LIKE '$table_name'") != $table_name) {
             $sql = "CREATE TABLE $table_name (
                 id int(11) NOT NULL AUTO_INCREMENT,
@@ -139,9 +121,7 @@ class CardanovAIAgent {
             
             $result = $wpdb->query($sql);
             
-            // Создаем индексы отдельно
             if ($result !== false) {
-                // Проверяем существование индексов
                 $index_exists = $wpdb->get_var("
                     SELECT COUNT(*) 
                     FROM information_schema.statistics 
@@ -243,7 +223,6 @@ class CardanovAIAgent {
     }
     
     public function add_admin_menu() {
-        // Главное меню
         add_menu_page(
             'Cardanov AI Agent',
             'AI Agent',
@@ -254,7 +233,6 @@ class CardanovAIAgent {
             30
         );
         
-        // Подменю: База знаний
         add_submenu_page(
             'cardanov-ai',
             'База знаний',
@@ -264,7 +242,6 @@ class CardanovAIAgent {
             [$this, 'admin_knowledge_page']
         );
         
-        // Подменю: Логи вопросов
         add_submenu_page(
             'cardanov-ai',
             'Логи вопросов',
@@ -274,7 +251,6 @@ class CardanovAIAgent {
             [$this, 'admin_logs_page']
         );
         
-        // Подменю: Настройки
         add_submenu_page(
             'cardanov-ai',
             'Настройки',
@@ -295,7 +271,6 @@ class CardanovAIAgent {
                 margin: 20px 0;
                 flex-wrap: wrap;
             }
-            
             .cardanov-ai-stat-box {
                 flex: 1;
                 min-width: 200px;
@@ -305,21 +280,18 @@ class CardanovAIAgent {
                 padding: 20px;
                 text-align: center;
             }
-            
             .cardanov-ai-stat-number {
                 font-size: 36px;
                 font-weight: bold;
                 color: #1a5fb4;
                 margin: 10px 0;
             }
-            
             .cardanov-ai-quick-actions {
                 display: flex;
                 gap: 10px;
                 margin: 20px 0;
                 flex-wrap: wrap;
             }
-            
             .cardanov-ai-category-badge {
                 display: inline-block;
                 padding: 3px 8px;
@@ -327,13 +299,11 @@ class CardanovAIAgent {
                 font-size: 12px;
                 font-weight: 500;
             }
-            
             .category-general { background: #e8f4ff; color: #1a5fb4; }
             .category-services { background: #d4edda; color: #155724; }
             .category-prices { background: #fff3cd; color: #856404; }
             .category-contacts { background: #f8d7da; color: #721c24; }
             .category-schedule { background: #d1ecf1; color: #0c5460; }
-            
             .priority-badge {
                 display: inline-block;
                 width: 24px;
@@ -345,27 +315,22 @@ class CardanovAIAgent {
                 border-radius: 50%;
                 font-weight: bold;
             }
-            
             .status-active {
                 color: #46b450;
                 font-weight: 500;
             }
-            
             .status-inactive {
                 color: #a7aaad;
             }
-            
             .button-delete {
                 background: #dc3232 !important;
                 border-color: #dc3232 !important;
                 color: white !important;
             }
-            
             .button-delete:hover {
                 background: #a00 !important;
                 border-color: #a00 !important;
             }
-            
             @media (max-width: 782px) {
                 .cardanov-ai-stat-box {
                     min-width: 100%;
@@ -381,7 +346,6 @@ class CardanovAIAgent {
         $knowledge_table = $wpdb->prefix . 'cardanov_ai_knowledge';
         $logs_table = $wpdb->prefix . 'cardanov_ai_logs';
         
-        // Проверяем таблицы
         $knowledge_exists = $wpdb->get_var("SHOW TABLES LIKE '$knowledge_table'") == $knowledge_table;
         $logs_exists = $wpdb->get_var("SHOW TABLES LIKE '$logs_table'") == $logs_table;
         
@@ -540,7 +504,6 @@ class CardanovAIAgent {
         global $wpdb;
         $table_name = $wpdb->prefix . 'cardanov_ai_knowledge';
         
-        // Проверяем таблицу
         $table_exists = $wpdb->get_var("SHOW TABLES LIKE '$table_name'") == $table_name;
         
         if (!$table_exists) {
@@ -552,7 +515,6 @@ class CardanovAIAgent {
             return;
         }
         
-        // ОБРАБОТКА УДАЛЕНИЯ
         if (isset($_GET['action']) && $_GET['action'] == 'delete' && isset($_GET['id'])) {
             $id = intval($_GET['id']);
             $nonce = isset($_GET['_wpnonce']) ? $_GET['_wpnonce'] : '';
@@ -572,7 +534,6 @@ class CardanovAIAgent {
             }
         }
         
-        // Показываем сообщения
         if (isset($_GET['message'])) {
             $messages = [
                 'saved' => '<div class="notice notice-success is-dismissible"><p>✅ Запись успешно сохранена!</p></div>',
@@ -685,7 +646,6 @@ class CardanovAIAgent {
         $table_name = $wpdb->prefix . 'cardanov_ai_knowledge';
         $item = $id ? $wpdb->get_row($wpdb->prepare("SELECT * FROM $table_name WHERE id = %d", $id)) : null;
         
-        // АВТОЗАПОЛНЕНИЕ
         if (!$id && isset($_GET['auto_question'])) {
             $auto_question = sanitize_text_field($_GET['auto_question']);
             $item = (object)[
@@ -719,7 +679,7 @@ class CardanovAIAgent {
                             <input type="text" id="question" name="question" 
                                    value="<?php echo $item ? esc_attr($item->question) : ''; ?>" 
                                    class="regular-text" required style="width: 100%; max-width: 500px;">
-                            <p class="description">Основной вопрос или тема, которую будет задавать пользователь</p>
+                            <p class="description">Основной вопрос или тема</p>
                         </td>
                     </tr>
                     
@@ -729,7 +689,7 @@ class CardanovAIAgent {
                             <input type="text" id="keywords" name="keywords" 
                                    value="<?php echo $item ? esc_attr($item->keywords) : ''; ?>" 
                                    class="regular-text" style="width: 100%; max-width: 500px;">
-                            <p class="description">Синонимы и варианты написания через запятую (кардан, вал, ремонт кардана)</p>
+                            <p class="description">Синонимы через запятую</p>
                         </td>
                     </tr>
                     
@@ -840,7 +800,6 @@ class CardanovAIAgent {
         global $wpdb;
         $table_name = $wpdb->prefix . 'cardanov_ai_logs';
         
-        // Проверяем таблицу
         $table_exists = $wpdb->get_var("SHOW TABLES LIKE '$table_name'") == $table_name;
         
         if (!$table_exists) {
@@ -853,13 +812,11 @@ class CardanovAIAgent {
             return;
         }
         
-        // Статистика
         $total_questions = $wpdb->get_var("SELECT COUNT(*) FROM $table_name");
         $answered_questions = $wpdb->get_var("SELECT COUNT(*) FROM $table_name WHERE answer_found = 1");
         $unanswered_questions = $wpdb->get_var("SELECT COUNT(*) FROM $table_name WHERE answer_found = 0");
         $today_questions = $wpdb->get_var("SELECT COUNT(*) FROM $table_name WHERE DATE(created_at) = CURDATE()");
         
-        // Популярные вопросы без ответа
         $popular_unanswered = $wpdb->get_results("
             SELECT question, COUNT(*) as count 
             FROM $table_name 
@@ -869,7 +826,6 @@ class CardanovAIAgent {
             LIMIT 20
         ");
         
-        // Последние вопросы
         $recent_questions = $wpdb->get_results("
             SELECT * FROM $table_name 
             ORDER BY created_at DESC 
@@ -880,7 +836,6 @@ class CardanovAIAgent {
         <div class="wrap">
             <h1>📊 Логи вопросов пользователей</h1>
             
-            <!-- Статистика -->
             <div class="cardanov-ai-stats" style="margin: 20px 0;">
                 <div class="cardanov-ai-stat-box">
                     <h3>Всего вопросов</h3>
@@ -907,7 +862,6 @@ class CardanovAIAgent {
                 </div>
             </div>
             
-            <!-- Популярные вопросы без ответа -->
             <div style="background: #fff; padding: 20px; border: 1px solid #ccd0d4; border-radius: 4px; margin: 20px 0;">
                 <h3>🔥 Популярные вопросы без ответа</h3>
                 <p>Эти вопросы пользователи задают чаще всего, но в базе знаний нет ответов:</p>
@@ -952,7 +906,6 @@ class CardanovAIAgent {
                 <?php endif; ?>
             </div>
             
-            <!-- Последние вопросы -->
             <div style="background: #fff; padding: 20px; border: 1px solid #ccd0d4; border-radius: 4px; margin: 20px 0;">
                 <h3>🕒 Последние вопросы</h3>
                 <p>Последние 50 вопросов от пользователей:</p>
@@ -991,7 +944,6 @@ class CardanovAIAgent {
                 </table>
             </div>
             
-            <!-- Быстрые действия -->
             <div style="background: #f8f9fa; padding: 20px; border: 1px solid #ddd; border-radius: 4px;">
                 <h3>⚡ Быстрые действия</h3>
                 <div style="display: flex; gap: 10px; margin-top: 15px;">
@@ -1042,6 +994,25 @@ class CardanovAIAgent {
     }
     
     public function admin_settings_page() {
+        // Получаем все страницы сайта
+        $pages = get_pages([
+            'post_type' => 'page',
+            'post_status' => 'publish',
+            'number' => 100,
+            'sort_column' => 'post_title',
+            'sort_order' => 'ASC'
+        ]);
+        
+        // Получаем исключенные страницы (исправленная версия)
+        $excluded_pages_option = get_option('cardanov_ai_excluded_pages', '');
+        
+        if (is_array($excluded_pages_option)) {
+            $excluded_array = $excluded_pages_option;
+        } else {
+            $excluded_array = $excluded_pages_option ? explode(',', $excluded_pages_option) : [];
+        }
+        
+        $excluded_array = array_filter($excluded_array, 'strlen');
         ?>
         <div class="wrap">
             <h1>⚙️ Настройки AI Agent</h1>
@@ -1057,9 +1028,9 @@ class CardanovAIAgent {
                         <th scope="row"><label for="cardanov_ai_button_text">Текст кнопки:</label></th>
                         <td>
                             <input type="text" id="cardanov_ai_button_text" 
-                                   name="cardanov_ai_button_text" 
-                                   value="<?php echo esc_attr(get_option('cardanov_ai_button_text', 'Задать вопрос')); ?>" 
-                                   class="regular-text">
+                                name="cardanov_ai_button_text" 
+                                value="<?php echo esc_attr(get_option('cardanov_ai_button_text', 'Задать вопрос')); ?>" 
+                                class="regular-text">
                             <p class="description">Текст на кнопке виджета</p>
                         </td>
                     </tr>
@@ -1068,8 +1039,8 @@ class CardanovAIAgent {
                         <th scope="row"><label for="cardanov_ai_button_color">Цвет кнопки:</label></th>
                         <td>
                             <input type="color" id="cardanov_ai_button_color" 
-                                   name="cardanov_ai_button_color" 
-                                   value="<?php echo esc_attr(get_option('cardanov_ai_button_color', '#1a5fb4')); ?>">
+                                name="cardanov_ai_button_color" 
+                                value="<?php echo esc_attr(get_option('cardanov_ai_button_color', '#1a5fb4')); ?>">
                             <p class="description">Основной цвет виджета</p>
                         </td>
                     </tr>
@@ -1078,11 +1049,52 @@ class CardanovAIAgent {
                         <th scope="row"><label for="cardanov_ai_welcome_message">Приветственное сообщение:</label></th>
                         <td>
                             <textarea id="cardanov_ai_welcome_message" 
-                                      name="cardanov_ai_welcome_message" 
-                                      rows="4" class="large-text"><?php 
+                                    name="cardanov_ai_welcome_message" 
+                                    rows="4" class="large-text"><?php 
                                 echo esc_textarea(get_option('cardanov_ai_welcome_message', 'Здравствуйте! Я помощник компании Автотехногарант. Спросите меня о ремонте карданных валов, ценах, адресе или графике работы.'));
                             ?></textarea>
                             <p class="description">Сообщение при открытии чата</p>
+                        </td>
+                    </tr>
+                    
+                    <tr>
+                        <th scope="row">Показывать агента на сайте:</th>
+                        <td>
+                            <?php 
+                            $enabled = get_option('cardanov_ai_enabled', '1');
+                            $checked = $enabled === '1' ? 'checked' : '';
+                            ?>
+                            <label>
+                                <input type="checkbox" id="cardanov_ai_enabled" 
+                                    name="cardanov_ai_enabled" value="1" <?php echo $checked; ?>>
+                                Включить AI агента на сайте
+                            </label>
+                            <p class="description">Если выключено, виджет не будет показываться на сайте</p>
+                        </td>
+                    </tr>
+                    
+                    <tr>
+                        <th scope="row">Исключить страницы:</th>
+                        <td>
+                            <div style="max-height: 300px; overflow-y: auto; border: 1px solid #ddd; padding: 10px; background: white;">
+                                <?php if ($pages): ?>
+                                    <?php foreach ($pages as $page): ?>
+                                        <?php 
+                                        $checked = in_array($page->ID, $excluded_array) ? 'checked' : '';
+                                        $page_title = $page->post_title ?: '(Без названия)';
+                                        ?>
+                                        <label style="display: block; margin-bottom: 5px;">
+                                            <input type="checkbox" name="cardanov_ai_excluded_pages[]" 
+                                                value="<?php echo $page->ID; ?>" <?php echo $checked; ?>>
+                                            <?php echo esc_html($page_title); ?> 
+                                            <small style="color: #666;">(ID: <?php echo $page->ID; ?>)</small>
+                                        </label>
+                                    <?php endforeach; ?>
+                                <?php else: ?>
+                                    <p>Нет созданных страниц</p>
+                                <?php endif; ?>
+                            </div>
+                            <p class="description">На этих страницах AI агент не будет отображаться</p>
                         </td>
                     </tr>
                 </table>
@@ -1094,6 +1106,22 @@ class CardanovAIAgent {
     }
     
     public function display_widget() {
+        // Проверяем, включен ли агент
+        if (get_option('cardanov_ai_enabled', '1') !== '1') {
+            return; // Не показываем если выключен
+        }
+        
+        // Проверяем, исключена ли текущая страница
+        $current_page_id = get_the_ID();
+        if ($current_page_id) {
+            $excluded_pages = get_option('cardanov_ai_excluded_pages', '');
+            $excluded_array = $excluded_pages ? explode(',', $excluded_pages) : [];
+            
+            if (in_array($current_page_id, $excluded_array)) {
+                return; // Не показываем на исключенной странице
+            }
+        }
+        
         $button_text = get_option('cardanov_ai_button_text', 'Задать вопрос');
         $button_color = get_option('cardanov_ai_button_color', '#1a5fb4');
         $welcome_message = get_option('cardanov_ai_welcome_message', 'Здравствуйте! Я помощник компании Автотехногарант. Спросите меня о ремонте карданных валов, ценах, адресе или графике работы.');
@@ -1380,7 +1408,6 @@ class CardanovAIAgent {
             wp_send_json_error(['message' => 'Вопрос не может быть пустым']);
         }
         
-        // ЗАПИСЫВАЕМ ВОПРОС В ЛОГ ДО ПОИСКА
         $log_result = $wpdb->insert($log_table, [
             'question' => $question,
             'answer_found' => 0,
@@ -1389,7 +1416,6 @@ class CardanovAIAgent {
         
         $log_id = $log_result ? $wpdb->insert_id : 0;
         
-        // Проверяем таблицу знаний
         $table_exists = $wpdb->get_var("SHOW TABLES LIKE '$table_name'") == $table_name;
         
         if (!$table_exists) {
@@ -1427,7 +1453,6 @@ class CardanovAIAgent {
             wp_send_json_success(['answer' => 'Здравствуйте! Я могу ответить на вопросы о ремонте, адресе, телефоне или графике работы.']);
         }
         
-        // Ищем в БД
         $items = $wpdb->get_results("SELECT * FROM $table_name WHERE is_active = 1 ORDER BY priority DESC");
         
         if (empty($items)) {
@@ -1571,7 +1596,7 @@ class CardanovAIAgent {
         }
         
         header('Content-Type: text/csv; charset=utf-8');
-        header('Content-Disposition: attachment; filename=cardanov_ai_logs_' . date('Y-m-d') . '.csv');
+        header('Content-Disposition: attachment; filename="cardanov_ai_logs_' . date('Y-m-d') . '.csv"');
         
         $output = fopen('php://output', 'w');
         
@@ -1637,17 +1662,26 @@ class CardanovAIAgent {
         register_setting('cardanov_ai_settings', 'cardanov_ai_button_text');
         register_setting('cardanov_ai_settings', 'cardanov_ai_button_color');
         register_setting('cardanov_ai_settings', 'cardanov_ai_welcome_message');
+        register_setting('cardanov_ai_settings', 'cardanov_ai_enabled');
+        register_setting('cardanov_ai_settings', 'cardanov_ai_excluded_pages');
     }
     
     public function register_elementor_widget($widgets_manager) {
-        require_once CARDANOV_AI_PATH . 'elementor-widget.php';
+        $widget_file = CARDANOV_AI_PATH . 'elementor-widget.php';
+        
+        if (!file_exists($widget_file)) {
+            error_log('Cardanov AI: Файл elementor-widget.php не найден по пути: ' . $widget_file);
+            return;
+        }
+        
+        include_once $widget_file;
+        
+        return;
     }
 }
 
-// Инициализация плагина
 function cardanov_ai_agent_init() {
     return CardanovAIAgent::instance();
 }
 
-// Запускаем
 add_action('plugins_loaded', 'cardanov_ai_agent_init');
