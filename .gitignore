@@ -1,0 +1,8 @@
+.vscode/
+node_modules/
+vendor/
+.env
+*.log
+sftp.json
+
+my..txt
